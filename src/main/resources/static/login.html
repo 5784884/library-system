@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>登录 - 图书管理系统</title>
+    <link rel="stylesheet" href="/css/layui.css">
+    <style>
+        body {
+            background-color: #f2f2f2;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-box {
+            width: 360px;
+            background: #fff;
+            padding: 40px 30px;
+            border-radius: 4px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .login-header h2 {
+            color: #009688;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .login-header p {
+            color: #999;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-box">
+    <div class="login-header">
+        <h2>图书管理系统</h2>
+        <p>Library Management System</p>
+    </div>
+
+    <form class="layui-form">
+        <div class="layui-form-item">
+            <div class="layui-input-wrap">
+                <div class="layui-input-prefix">
+                    <i class="layui-icon layui-icon-username"></i>
+                </div>
+                <input type="text" name="username" value="zhangsan" lay-verify="required" placeholder="用户名" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <div class="layui-input-wrap">
+                <div class="layui-input-prefix">
+                    <i class="layui-icon layui-icon-password"></i>
+                </div>
+                <input type="password" name="password" value="123456" lay-verify="required" placeholder="密码" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <button class="layui-btn layui-btn-fluid layui-bg-green" lay-submit lay-filter="login-submit">立即登录</button>
+        </div>
+    </form>
+</div>
+
+<script src="/layui.js"></script>
+
+<script>
+    layui.use(['form', 'layer', 'jquery'], function(){
+        var form = layui.form;
+        var layer = layui.layer;
+        var $ = layui.jquery;
+
+        // 监听提交
+        form.on('submit(login-submit)', function(data){
+            var field = data.field; // 获取表单字段值
+
+            // 显示加载层
+            var loadIndex = layer.load(2);
+
+            // 请求登录接口
+            $.ajax({
+                url: '/user/login',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(field),
+                success: function(res){
+                    layer.close(loadIndex); // 关闭加载层
+
+                    if(res.code === 200){
+                        layer.msg('登录成功', {icon: 1, time: 1000}, function(){
+                            // 1. 把用户信息存入 LocalStorage
+                            localStorage.setItem('currentUser', JSON.stringify(res.data));
+
+                            // 2. 跳转到主页
+                            window.location.href = '/index.html';
+                        });
+                    } else {
+                        layer.msg(res.msg || '登录失败', {icon: 2});
+                    }
+                },
+                error: function(){
+                    layer.close(loadIndex);
+                    layer.msg('服务器请求失败', {icon: 2});
+                }
+            });
+            return false; // 阻止表单默认跳转
+        });
+    });
+</script>
+
+</body>
+</html>

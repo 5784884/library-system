@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>图书管理系统</title>
+    <link rel="stylesheet" href="/css/layui.css">
+    <style>
+        body { background-color: #f2f2f2; padding: 20px; }
+        .layui-container { background-color: #fff; padding: 20px; border-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,.1); position: relative; }
+        .header-box { border-left: 5px solid #009688; padding-left: 10px; margin-bottom: 20px; }
+        .tool-bar { margin-bottom: 15px; display: flex; gap: 10px; }
+        .search-input { width: 250px; display: inline-block; }
+
+        /* 用户信息样式 */
+        .user-info { position: absolute; top: 20px; right: 20px; font-size: 14px; }
+        .user-name { color: #009688; font-weight: bold; margin-right: 10px; }
+        .logout-link { color: #999; text-decoration: none; }
+        .logout-link:hover { color: #FF5722; }
+    </style>
+</head>
+<body>
+
+<div class="layui-container">
+    <div class="user-info">
+        当前用户：<span id="currentUserSpan" class="user-name"></span>
+        <a href="javascript:;" id="logoutBtn" class="logout-link">[退出]</a>
+    </div>
+
+    <div class="header-box">
+        <h2>图书管理系统</h2>
+    </div>
+
+    <div class="tool-bar">
+        <input type="text" id="searchInput" placeholder="请输入书名或作者" autocomplete="off" class="layui-input search-input">
+        <button class="layui-btn layui-btn-normal" id="searchBtn">
+            <i class="layui-icon layui-icon-search"></i> 搜索
+        </button>
+        <button class="layui-btn" id="addBtn">
+            <i class="layui-icon layui-icon-add-1"></i> 新增图书
+        </button>
+    </div>
+
+    <table id="bookTable" lay-filter="bookTable"></table>
+</div>
+
+<script type="text/html" id="statusTpl">
+    {{#  if(d.status == 1){ }}
+    <span class="layui-badge layui-bg-green">在库</span>
+    {{#  } else { }}
+    <span class="layui-badge layui-bg-gray">借出</span>
+    {{#  } }}
+</script>
+
+<script type="text/html" id="barDemo">
+    {{#  if(d.status == 1){ }}
+    <a class="layui-btn layui-btn-xs layui-btn-warm" lay-event="borrow">借阅</a>
+    {{#  } else { }}
+    <a class="layui-btn layui-btn-xs layui-btn-normal" lay-event="return">归还</a>
+    {{#  } }}
+    <a class="layui-btn layui-btn-xs" lay-event="edit">编辑</a>
+    <a class="layui-btn layui-btn-danger layui-btn-xs" lay-event="del">删除</a>
+</script>
+
+<div id="bookDialog" style="display:none; padding: 20px;">
+    <form class="layui-form" lay-filter="bookForm">
+        <input type="hidden" name="id">
+        <div class="layui-form-item">
+            <label class="layui-form-label">图书名称</label>
+            <div class="layui-input-block">
+                <input type="text" name="name" required lay-verify="required" placeholder="请输入书名" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">作者</label>
+            <div class="layui-input-block">
+                <input type="text" name="author" required lay-verify="required" placeholder="请输入作者" class="layui-input">
+            </div>
+        </div>
+        <div class="layui-form-item">
+            <label class="layui-form-label">价格</label>
+            <div class="layui-input-block">
+                <input type="number" name="price" required lay-verify="required|number" placeholder="请输入价格" class="layui-input">
+            </div>
+        </div>
+        <button lay-submit lay-filter="submitBtn" style="display:none;"></button>
+    </form>
+</div>
+
+<script src="/layui.js"></script>
+
+<script>
+    layui.use(['table', 'layer', 'form', 'jquery'], function () {
+        var table = layui.table;
+        var layer = layui.layer;
+        var form = layui.form;
+        var $ = layui.jquery;
+
+        // ==========================================
+        //  第一部分：登录状态检查与用户信息
+        // ==========================================
+
+        // 1. 检查 LocalStorage 是否有用户信息
+        var userStr = localStorage.getItem('currentUser');
+        if(!userStr){
+            // 如果没登录，强制跳转到登录页
+            window.location.href = '/login.html';
+            return;
+        }
+
+        // 2. 解析用户信息并显示
+        var currentUser = JSON.parse(userStr);
+        $('#currentUserSpan').text(currentUser.username);
+
+        // 3. 退出登录逻辑
+        $('#logoutBtn').click(function(){
+            localStorage.removeItem('currentUser'); // 清除缓存
+            window.location.href = '/login.html';   // 跳回登录页
+        });
+
+
+        // ==========================================
+        //  第二部分：核心业务逻辑 (表格、增删改查)
+        // ==========================================
+
+        // 1. 渲染表格
+        table.render({
+            elem: '#bookTable',
+            url: '/book/list',
+            cols: [[
+                {field: 'id', title: 'ID', width: 80, sort: true, align: 'center'},
+                {field: 'name', title: '书名', width: 200},
+                {field: 'author', title: '作者', width: 150},
+                {field: 'price', title: '价格', width: 100, templet: d => '￥'+d.price},
+                {field: 'status', title: '状态', width: 100, align: 'center', templet: '#statusTpl'},
+                {title: '操作', minWidth: 220, toolbar: '#barDemo', align: 'center'}
+            ]]
+        });
+
+        // 2. 搜索功能
+        $('#searchBtn').click(function () {
+            var val = $('#searchInput').val();
+            table.reload('bookTable', {
+                where: { keyword: val }
+            });
+        });
+
+        // 3. 打开弹窗 (新增/编辑)
+        function openDialog(title, data) {
+            if(!data) {
+                $('#bookDialog form')[0].reset();
+                $('[name="id"]').val('');
+            } else {
+                form.val("bookForm", data);
+            }
+
+            layer.open({
+                type: 1,
+                title: title,
+                area: ['500px', '350px'],
+                content: $('#bookDialog'),
+                btn: ['确定', '取消'],
+                yes: function(index, layero){
+                    layero.find('form').find('button[lay-submit]').click();
+                }
+            });
+        }
+
+        // 点击新增按钮
+        $('#addBtn').click(function () {
+            openDialog('新增图书', null);
+        });
+
+        // 4. 提交表单 (新增/修改)
+        form.on('submit(submitBtn)', function(data){
+            var field = data.field;
+            var url = field.id ? '/book/update' : '/book/add';
+
+            $.ajax({
+                url: url,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(field),
+                success: function(res){
+                    if(res.code === 200){
+                        layer.msg(res.msg, {icon: 1});
+                        layer.closeAll('page');
+                        table.reload('bookTable');
+                    } else {
+                        layer.msg('操作失败');
+                    }
+                }
+            });
+            return false;
+        });
+
+        // 5. 行工具条事件 (删除、编辑、借阅、归还)
+        table.on('tool(bookTable)', function(obj){
+            var data = obj.data;
+            var event = obj.event;
+
+            if(event === 'del'){
+                layer.confirm('确定删除《'+ data.name +'》吗？', function(index){
+                    $.post('/book/delete/' + data.id, function(res){
+                        if(res.code === 200){
+                            obj.del();
+                            layer.msg('已删除', {icon: 1});
+                        }
+                    });
+                    layer.close(index);
+                });
+            } else if(event === 'edit'){
+                openDialog('编辑图书', data);
+            } else if(event === 'borrow'){
+                // ✅ 借书：发送图书ID + 当前登录用户的ID
+                $.post('/book/borrow/' + data.id, { userId: currentUser.id }, function(res){
+                    if(res.code === 200) {
+                        layer.msg('借阅成功', {icon: 1});
+                        table.reload('bookTable');
+                    }
+                });
+            } else if(event === 'return'){
+                // 还书：只需要图书ID
+                $.post('/book/return/' + data.id, function(res){
+                    if(res.code === 200) {
+                        layer.msg('归还成功', {icon: 1});
+                        table.reload('bookTable');
+                    }
+                });
+            }
+        });
+    });
+</script>
+
+</body>
+</html>
